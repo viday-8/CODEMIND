@@ -1,0 +1,256 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  DEVELOPER
+  REVIEWER
+  ADMIN
+}
+
+enum RepoStatus {
+  PENDING
+  INGESTING
+  READY
+  ERROR
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum NodeType {
+  FILE
+  FUNCTION
+  CLASS
+  METHOD
+  INTERFACE
+  EXPORT
+  MODULE
+}
+
+enum EdgeLabel {
+  IMPORTS
+  DEFINES
+  EXPORTS
+  CALLS
+  EXTENDS
+  IMPLEMENTS
+}
+
+enum ChangeType {
+  FEATURE
+  BUG_FIX
+  REFACTOR
+  PERFORMANCE
+  SECURITY
+  REQUIREMENT
+}
+
+enum TaskStatus {
+  PENDING
+  AGENT_RUNNING
+  REVIEW_RUNNING
+  AWAITING_APPROVAL
+  APPROVED
+  REJECTED
+  PATCHING
+  DONE
+  FAILED
+}
+
+enum AgentType {
+  CODING
+  REVIEW
+}
+
+enum Verdict {
+  PASS
+  WARN
+  BLOCK
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+
+enum PRStatus {
+  OPEN
+  MERGED
+  CLOSED
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         Role       @default(DEVELOPER)
+  createdAt    DateTime   @default(now())
+  tasks        Task[]
+  approvals    Approval[]
+}
+
+model Repository {
+  id             String      @id @default(cuid())
+  owner          String
+  name           String
+  fullName       String      @unique
+  defaultBranch  String      @default("main")
+  githubToken    String?
+  status         RepoStatus  @default(PENDING)
+  lastIngestedAt DateTime?
+  createdAt      DateTime    @default(now())
+  files          File[]
+  tasks          Task[]
+  ingestJobs     IngestJob[]
+
+  @@index([fullName])
+}
+
+model IngestJob {
+  id           String     @id @default(cuid())
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  status       JobStatus  @default(QUEUED)
+  progress     Int        @default(0)
+  log          String[]
+  startedAt    DateTime?
+  completedAt  DateTime?
+  errorMessage String?
+  createdAt    DateTime   @default(now())
+
+  @@index([repositoryId])
+}
+
+model File {
+  id           String     @id @default(cuid())
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  path         String
+  name         String
+  ext          String
+  content      String
+  sizeBytes    Int
+  sha          String
+  embedding    Unsupported("vector(384)")?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  nodes        GraphNode[]
+
+  @@unique([repositoryId, path])
+  @@index([repositoryId])
+}
+
+model GraphNode {
+  id           String      @id @default(cuid())
+  repositoryId String
+  fileId       String
+  file         File        @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  nodeType     NodeType
+  name         String
+  fullName     String
+  startLine    Int
+  endLine      Int
+  outEdges     GraphEdge[] @relation("EdgeFrom")
+  inEdges      GraphEdge[] @relation("EdgeTo")
+
+  @@index([repositoryId, nodeType])
+  @@index([repositoryId, fullName])
+}
+
+model GraphEdge {
+  id     String    @id @default(cuid())
+  fromId String
+  toId   String
+  label  EdgeLabel
+  from   GraphNode @relation("EdgeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to     GraphNode @relation("EdgeTo",   fields: [toId],   references: [id], onDelete: Cascade)
+
+  @@index([fromId])
+  @@index([toId])
+}
+
+model Task {
+  id           String     @id @default(cuid())
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  requesterId  String?
+  requester    User?      @relation(fields: [requesterId], references: [id])
+  title        String
+  description  String
+  changeType   ChangeType
+  status       TaskStatus @default(PENDING)
+  attempt      Int        @default(1)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  agentJobs    AgentJob[]
+  approval     Approval?
+  pullRequest  PullRequest?
+
+  @@index([repositoryId])
+  @@index([requesterId])
+}
+
+model AgentJob {
+  id              String    @id @default(cuid())
+  taskId          String
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  attempt         Int       @default(1)
+  agentType       AgentType
+  status          JobStatus @default(QUEUED)
+  primaryFilePath String?
+  diffRaw         String?
+  patchedContent  String?
+  explanation     String?
+  verdict         Verdict?
+  reviewSummary   String?
+  reviewComments  Json?
+  rejectionReason String?
+  log             String[]
+  tokenCount      Int?
+  durationMs      Int?
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+
+  @@index([taskId])
+}
+
+model Approval {
+  id         String           @id @default(cuid())
+  taskId     String           @unique
+  task       Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  reviewerId String?
+  reviewer   User?            @relation(fields: [reviewerId], references: [id])
+  decision   ApprovalDecision
+  reason     String?
+  createdAt  DateTime         @default(now())
+}
+
+model PullRequest {
+  id           String   @id @default(cuid())
+  taskId       String   @unique
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  repoFullName String
+  prNumber     Int
+  branchName   String
+  prUrl        String
+  title        String
+  status       PRStatus @default(OPEN)
+  createdAt    DateTime @default(now())
+}
