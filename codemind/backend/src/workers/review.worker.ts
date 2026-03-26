@@ -5,7 +5,7 @@ import { logger } from '../lib/logger'
 import { TaskRepository } from '../repositories/task.repository'
 import { callClaude } from '../lib/claude'
 import { buildReviewPrompt, REVIEW_AGENT_SYSTEM } from '../lib/prompts'
-import type { ReviewOutput } from '@codemind/shared'
+import type { ReviewOutput, FileChange } from '@codemind/shared'
 
 interface ReviewJobData {
   taskId: string
@@ -42,23 +42,31 @@ export function startReviewWorker() {
     await emit(job, { type: 'log', message: '  Review agent started', level: 'info' })
 
     const codingJob = await taskRepo.findAgentJobById(codingJobId)
-    if (!codingJob?.diffRaw || !codingJob.primaryFilePath) {
+
+    const fileChanges = (codingJob?.fileChanges as FileChange[] | null) ?? null
+    if ((!codingJob?.diffRaw || !codingJob.primaryFilePath) && !fileChanges?.length) {
       throw new Error('No diff found from coding agent')
     }
 
     const task = await taskRepo.findById(taskId)
     if (!task) throw new Error(`Task ${taskId} not found`)
 
+    // Build combined diff: use all fileChanges if available, otherwise fall back to single diffRaw
+    const combinedDiff = fileChanges?.length
+      ? fileChanges.filter((fc) => fc.diff).map((fc) => `=== ${fc.path} ===\n${fc.diff}`).join('\n\n')
+      : codingJob?.diffRaw ?? ''
+    const primaryPath = fileChanges?.[0]?.path ?? codingJob?.primaryFilePath ?? ''
+
     // Heuristic checks
-    const heuristicComments = runHeuristics(codingJob.diffRaw)
+    const heuristicComments = runHeuristics(combinedDiff)
     await emit(job, { type: 'log', message: `  Heuristics: ${heuristicComments.length} comment(s)`, level: 'info' })
 
     // Claude AI review
     await emit(job, { type: 'log', message: '  Calling Claude for AI review...', level: 'info' })
     const prompt = buildReviewPrompt({
       title: task.title,
-      diff: codingJob.diffRaw,
-      filePath: codingJob.primaryFilePath,
+      diff: combinedDiff,
+      filePath: primaryPath,
     })
 
     let aiOutput: ReviewOutput = { verdict: 'pass', summary: 'Review could not be parsed', comments: [] }

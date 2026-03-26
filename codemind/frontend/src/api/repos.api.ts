@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { api } from './client'
-import type { FileMatch, RepoPreview } from '@codemind/shared'
+import type { ChunkMatch, RepoPreview } from '@codemind/shared'
 
 export function useRepos() {
   return useQuery({
@@ -44,16 +44,30 @@ export function useTriggerIngest() {
   })
 }
 
-export function useVectorSearch(repoId: string, query: string) {
+export function useVectorSearch(repoId: string, title: string, description: string) {
+  const query = [title, description].filter(Boolean).join('\n')
   return useQuery({
     queryKey: ['search', repoId, query],
     queryFn: async () => {
-      const { data } = await api.get<{ data: FileMatch[] }>(`/repos/${repoId}/search`, {
-        params: { q: query },
+      const { data } = await api.get<{ data: ChunkMatch[] }>(`/repos/${repoId}/search`, {
+        params: { q: query, limit: 8 },
       })
       return data.data
     },
-    enabled: !!repoId && query.length > 3,
+    enabled: !!repoId && query.trim().length > 3,
+  })
+}
+
+export function useRechunk() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (repoId: string) => {
+      const { data } = await api.post<{ data: { chunks: number } }>(`/repos/${repoId}/rechunk`)
+      return data.data
+    },
+    onSuccess: (_, repoId) => {
+      qc.invalidateQueries({ queryKey: ['search', repoId] })
+    },
   })
 }
 

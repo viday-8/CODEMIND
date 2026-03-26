@@ -1,9 +1,9 @@
 export const CODING_AGENT_SYSTEM = `You are an expert coding agent embedded in a DevOps platform.
-You receive real source code from a GitHub repository and a change request.
-You MUST generate a minimal, precise unified diff that implements exactly what was requested.
-Your diff must reference real line numbers and real code from the files provided.
+You receive source code from a GitHub repository and a change request.
+You MUST generate precise, minimal changes that implement exactly what was requested.
+You can modify existing files and create new files.
 Never invent code that is not logically consistent with the existing codebase.
-Always use <diff> and <explanation> tags in your response.`
+Always respond using the exact XML format specified — no other text outside the tags.`
 
 export const REVIEW_AGENT_SYSTEM = `You are a senior software engineer performing a code review.
 You receive a task description and a unified diff.
@@ -15,41 +15,56 @@ export function buildCodingPrompt(ctx: {
   title: string
   description: string
   changeType: string
-  primaryFile: { path: string; ext: string; content: string }
-  relatedFiles: Array<{ path: string; ext: string; content: string }>
-  importers: string[]
-  deps: string[]
-  entities: string[]
+  candidateFiles: Array<{
+    path: string
+    ext: string
+    content: string
+    importers: string[]
+    deps: string[]
+  }>
   rejectionFeedback?: string
 }): string {
+  const filesSection = ctx.candidateFiles.map((f) => {
+    const graphCtx = [
+      f.deps.length     ? `IMPORTS: ${f.deps.join(', ')}` : '',
+      f.importers.length ? `IMPORTED BY: ${f.importers.join(', ')}` : '',
+    ].filter(Boolean).join('\n')
+    return `═══ FILE: ${f.path} ═══
+${graphCtx ? graphCtx + '\n' : ''}\`\`\`${f.ext}
+${f.content}
+\`\`\``
+  }).join('\n\n')
+
   return `TASK: ${ctx.title}
 DESCRIPTION: ${ctx.description}
 TYPE: ${ctx.changeType}
 ${ctx.rejectionFeedback ? `\nPREVIOUS ATTEMPT WAS REJECTED:\n${ctx.rejectionFeedback}\nFix the above issues in this attempt.\n` : ''}
-═══ PRIMARY FILE: ${ctx.primaryFile.path} ═══
-\`\`\`${ctx.primaryFile.ext}
-${ctx.primaryFile.content}
-\`\`\`
-${ctx.entities.length ? `\nDEFINED: ${ctx.entities.join(', ')}` : ''}
-${ctx.importers.length ? `\nIMPORTED BY: ${ctx.importers.join(', ')}` : ''}
-${ctx.deps.length ? `\nIMPORTS: ${ctx.deps.join(', ')}` : ''}
-${ctx.relatedFiles.length
-  ? '\n═══ RELATED FILES ═══\n' + ctx.relatedFiles.map((f) =>
-    `// ${f.path}\n\`\`\`${f.ext}\n${f.content.slice(0, 800)}\n\`\`\``,
-  ).join('\n\n')
-  : ''}
+${filesSection}
 
-Generate a minimal unified diff. Respond with EXACTLY:
+Generate the minimal set of changes to implement the task.
+Only touch files that actually need to change.
+
+For each file you MODIFY:
+<file path="src/services/foo.ts" operation="modify">
 <diff>
---- a/${ctx.primaryFile.path}
-+++ b/${ctx.primaryFile.path}
+--- a/src/services/foo.ts
++++ b/src/services/foo.ts
 @@ -LINE,COUNT +LINE,COUNT @@
  context line
 -removed line
 +added line
 </diff>
+</file>
+
+For each NEW file you CREATE:
+<file path="src/services/bar.ts" operation="create">
+<content>
+// full file content here
+</content>
+</file>
+
 <explanation>
-What changed, why, and which dependents to verify.
+What changed, why, and which callers to verify.
 </explanation>`
 }
 

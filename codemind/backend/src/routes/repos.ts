@@ -5,7 +5,10 @@ import { IngestService } from '../services/ingest.service'
 import { RepositoryRepository } from '../repositories/repository.repository'
 import { IngestJobRepository } from '../repositories/ingest-job.repository'
 import { FileRepository } from '../repositories/file.repository'
+import { ChunkRepository } from '../repositories/chunk.repository'
+import { GraphRepository } from '../repositories/graph.repository'
 import { embedText } from '../lib/embedder'
+import { extractChunks } from '../services/chunk.service'
 import { prisma } from '../lib/prisma'
 import { ConnectRepoSchema, RepoPreviewQuerySchema } from '@codemind/shared'
 import { GitHubService } from '../lib/github'
@@ -14,6 +17,8 @@ const router = Router()
 const repoRepo  = new RepositoryRepository(prisma)
 const jobRepo   = new IngestJobRepository(prisma)
 const fileRepo  = new FileRepository(prisma)
+const chunkRepo = new ChunkRepository(prisma)
+const graphRepo = new GraphRepository(prisma)
 const ingestService = new IngestService(repoRepo, jobRepo)
 
 router.get('/repos', async (_req, res, next) => {
@@ -142,10 +147,59 @@ router.get('/repos/:id/search', async (req, res, next) => {
     if (!repo) throw new NotFoundError('Repository not found')
     const q = String(req.query.q ?? '')
     if (!q) { res.json({ data: [], error: null, meta: { took: 0 } }); return }
-    const limit = Math.min(Number(req.query.limit) || 6, 20)
+    const limit = Math.min(Number(req.query.limit) || 8, 20)
     const embedding = await embedText(q)
-    const results   = await fileRepo.findSimilar(req.params.id, embedding, limit)
+    let results = await chunkRepo.findSimilar(req.params.id, embedding, limit)
+
+    // Fallback: if no chunks indexed yet, use file-level search mapped to ChunkMatch shape
+    if (results.length === 0) {
+      const files = await fileRepo.findSimilar(req.params.id, embedding, limit)
+      results = files.map((f) => ({
+        id: f.id,
+        path: f.path,
+        name: f.name,
+        chunkType: 'FILE_HEADER' as const,
+        startLine: 1,
+        endLine: 1,
+        content: f.content?.slice(0, 300) ?? '',
+        similarity: f.similarity,
+      }))
+    }
+
     res.json({ data: results, error: null, meta: { took: Date.now() - start } })
+  } catch (err) { next(err) }
+})
+
+// Re-index chunks from stored file content (no GitHub fetch)
+router.post('/repos/:id/rechunk', async (req, res, next) => {
+  const start = Date.now()
+  try {
+    const repo = await repoRepo.findById(req.params.id)
+    if (!repo) throw new NotFoundError('Repository not found')
+
+    await chunkRepo.deleteForRepo(req.params.id)
+
+    const allFiles = await fileRepo.findByRepo(req.params.id)
+    let chunksTotal = 0
+
+    for (const file of allFiles) {
+      const fileNode = await graphRepo.findFileNodeByPath(req.params.id, file.path)
+      const symbolNodes = fileNode ? await graphRepo.findChildNodes(fileNode.id) : []
+      const rawChunks = extractChunks(file.content, symbolNodes)
+      const saved = await chunkRepo.upsertChunks(req.params.id, file.id, file.path, rawChunks)
+
+      for (const chunk of saved) {
+        const raw = rawChunks.find((c) => c.startLine === chunk.startLine)
+        if (!raw) continue
+        try {
+          const embedding = await embedText(raw.content.slice(0, 1500))
+          await chunkRepo.updateEmbedding(chunk.id, embedding)
+          chunksTotal++
+        } catch { /* skip */ }
+      }
+    }
+
+    res.json({ data: { chunks: chunksTotal }, error: null, meta: { took: Date.now() - start } })
   } catch (err) { next(err) }
 })
 

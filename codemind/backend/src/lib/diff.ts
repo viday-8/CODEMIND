@@ -1,3 +1,40 @@
+import type { FileChange } from '@codemind/shared'
+
+export interface MultiFileParsedOutput {
+  fileChanges: FileChange[]
+  explanation: string
+  totalAdditions: number
+  totalDeletions: number
+}
+
+export function parseMultiFileDiff(claudeResponse: string): MultiFileParsedOutput {
+  const explanation = claudeResponse.match(/<explanation>([\s\S]*?)<\/explanation>/)?.[1]?.trim() ?? ''
+  const fileBlockRegex = /<file\s+path="([^"]+)"\s+operation="(modify|create)">([\s\S]*?)<\/file>/g
+  const fileChanges: FileChange[] = []
+
+  let match: RegExpExecArray | null
+  while ((match = fileBlockRegex.exec(claudeResponse)) !== null) {
+    const [, path, operation, body] = match
+    if (operation === 'modify') {
+      const diff = body.match(/<diff>([\s\S]*?)<\/diff>/)?.[1]?.trim() ?? ''
+      const lines = diff.split('\n')
+      const additions = lines.filter((l) => l.startsWith('+') && !l.startsWith('+++')).length
+      const deletions = lines.filter((l) => l.startsWith('-') && !l.startsWith('---')).length
+      fileChanges.push({ path, operation: 'modify', diff, additions, deletions })
+    } else {
+      const content = body.match(/<content>([\s\S]*?)<\/content>/)?.[1]?.trim() ?? ''
+      fileChanges.push({ path, operation: 'create', content, additions: content.split('\n').length, deletions: 0 })
+    }
+  }
+
+  return {
+    fileChanges,
+    explanation,
+    totalAdditions: fileChanges.reduce((s, f) => s + f.additions, 0),
+    totalDeletions: fileChanges.reduce((s, f) => s + f.deletions, 0),
+  }
+}
+
 export interface ParsedDiff {
   diff: string
   explanation: string

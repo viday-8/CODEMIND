@@ -58,6 +58,7 @@ export class TaskRepository {
     primaryFilePath: string
     diffRaw: string
     patchedContent: string
+    fileChanges: object
     explanation: string
     verdict: AgentJob['verdict']
     reviewSummary: string

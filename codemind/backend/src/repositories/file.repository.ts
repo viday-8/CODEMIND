@@ -48,6 +48,10 @@ export class FileRepository {
       UPDATE "File" SET embedding = ${vec}::vector WHERE id = ${id}`
   }
 
+  async findByRepo(repositoryId: string): Promise<File[]> {
+    return this.prisma.file.findMany({ where: { repositoryId } })
+  }
+
   async findSimilar(repositoryId: string, queryEmbedding: number[], limit = 6): Promise<Array<File & { similarity: number }>> {
     const vec = `[${queryEmbedding.join(',')}]`
     return this.prisma.$queryRaw<Array<File & { similarity: number }>>`

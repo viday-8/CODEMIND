@@ -5,6 +5,7 @@ import { logger } from '../lib/logger'
 import { TaskRepository } from '../repositories/task.repository'
 import { RepositoryRepository } from '../repositories/repository.repository'
 import { GitHubService } from '../lib/github'
+import type { FileChange } from '@codemind/shared'
 
 interface PatchJobData {
   taskId: string
@@ -26,7 +27,12 @@ export function startPatchWorker() {
     if (!task) throw new Error(`Task ${taskId} not found`)
 
     const codingJob = await taskRepo.findAgentJobById(agentJobId)
-    if (!codingJob?.patchedContent || !codingJob.primaryFilePath) {
+
+    const fileChanges = (codingJob?.fileChanges as FileChange[] | null) ?? null
+    const hasMultiFile = Array.isArray(fileChanges) && fileChanges.length > 0
+    const hasSingleFile = !!codingJob?.patchedContent && !!codingJob.primaryFilePath
+
+    if (!hasMultiFile && !hasSingleFile) {
       throw new Error('No patched content available')
     }
 
@@ -45,17 +51,23 @@ export function startPatchWorker() {
     await emit(job, { type: 'log', message: `  Creating branch: ${branchName}`, level: 'info' })
     await github.createBranch(repo.owner, repo.name, branchName, baseSha)
 
-    // Get current file SHA for update (required by GitHub API)
-    const fileSha = await github.getFileSha(repo.owner, repo.name, codingJob.primaryFilePath, repo.defaultBranch)
+    // Determine files to commit: prefer multi-file payload, fall back to single-file
+    const filesToCommit = hasMultiFile
+      ? fileChanges!.filter((fc) => fc.content).map((fc) => ({ path: fc.path, content: fc.content! }))
+      : [{ path: codingJob!.primaryFilePath!, content: codingJob!.patchedContent! }]
 
-    await emit(job, { type: 'log', message: `  Committing ${codingJob.primaryFilePath}...`, level: 'info' })
-    await github.commitFile(repo.owner, repo.name, {
-      path: codingJob.primaryFilePath,
-      content: codingJob.patchedContent,
-      message: `feat: ${task.title}`,
-      branch: branchName,
-      sha: fileSha,
-    })
+    // Commit each file (create or update depending on whether it exists on the branch)
+    for (const file of filesToCommit) {
+      const fileSha = await github.getFileSha(repo.owner, repo.name, file.path, repo.defaultBranch)
+      await emit(job, { type: 'log', message: `  Committing ${file.path}...`, level: 'info' })
+      await github.commitFile(repo.owner, repo.name, {
+        path: file.path,
+        content: file.content,
+        message: `feat: ${task.title}`,
+        branch: branchName,
+        sha: fileSha, // undefined for new files — GitHub API creates them; defined for updates
+      })
+    }
 
     // Build PR body from review summary
     const reviewJob = task.agentJobs.find((j) => j.agentType === 'REVIEW')
@@ -65,12 +77,13 @@ export function startPatchWorker() {
       `**Task:** ${task.title}`,
       `**Type:** ${task.changeType}`,
       `**Attempt:** ${task.attempt}`,
+      `**Files changed:** ${filesToCommit.length}`,
       ``,
       `### Description`,
       task.description,
       ``,
       `### Agent Explanation`,
-      codingJob.explanation ?? '_No explanation provided._',
+      codingJob?.explanation ?? '_No explanation provided._',
       ``,
       reviewJob?.reviewSummary ? `### Review Summary\n${reviewJob.reviewSummary}` : '',
       ``,
@@ -98,7 +111,7 @@ export function startPatchWorker() {
     await taskRepo.updateStatus(taskId, 'DONE')
 
     await emit(job, { type: 'done', prUrl: pr.html_url, prNumber: pr.number })
-    logger.info({ taskId, prUrl: pr.html_url }, 'PatchWorker: PR created')
+    logger.info({ taskId, prUrl: pr.html_url, fileCount: filesToCommit.length }, 'PatchWorker: PR created')
 
     return { prUrl: pr.html_url, prNumber: pr.number }
   }, {
