@@ -1,8 +1,97 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import ReactDiffViewer from 'react-diff-viewer-continued'
 import { useTask, useApproveTask, useRejectTask } from '../../api/tasks.api'
 import Badge, { statusVariant } from '../../components/Badge'
+import type { FileChange } from '@codemind/shared'
+
+// ── Unified diff renderer ─────────────────────────────────────────────────────
+
+function DiffLine({ line }: { line: string }) {
+  if (line.startsWith('@@')) {
+    return (
+      <div className="bg-gray-800 px-3 py-0.5 font-mono text-xs text-purple-300 select-none">
+        {line}
+      </div>
+    )
+  }
+  if (line.startsWith('+')) {
+    return (
+      <div className="bg-green-950 px-3 py-0.5 font-mono text-xs text-green-300 whitespace-pre">
+        {line}
+      </div>
+    )
+  }
+  if (line.startsWith('-')) {
+    return (
+      <div className="bg-red-950 px-3 py-0.5 font-mono text-xs text-red-300 whitespace-pre">
+        {line}
+      </div>
+    )
+  }
+  return (
+    <div className="px-3 py-0.5 font-mono text-xs text-gray-400 whitespace-pre">
+      {line}
+    </div>
+  )
+}
+
+function FileBlock({ fc }: { fc: FileChange }) {
+  const [collapsed, setCollapsed] = useState(false)
+
+  const lines: string[] = fc.operation === 'create'
+    ? (fc.content ?? '').split('\n').map((l) => '+' + l)
+    : (fc.diff ?? '').split('\n')
+
+  return (
+    <div className="border border-gray-700 rounded-lg overflow-hidden mb-4">
+      {/* File header */}
+      <button
+        onClick={() => setCollapsed((c) => !c)}
+        className="w-full flex items-center justify-between px-4 py-2 bg-gray-900 hover:bg-gray-800 text-left"
+      >
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-sm text-gray-200">{fc.path}</span>
+          {fc.operation === 'create' && (
+            <span className="text-xs rounded px-1.5 py-0.5 bg-green-900 text-green-300">new file</span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-xs shrink-0">
+          {fc.additions > 0 && <span className="text-green-400">+{fc.additions}</span>}
+          {fc.deletions > 0 && <span className="text-red-400">-{fc.deletions}</span>}
+          <span className="text-gray-500">{collapsed ? '▶' : '▼'}</span>
+        </div>
+      </button>
+
+      {/* Diff body */}
+      {!collapsed && (
+        <div className="overflow-x-auto bg-gray-950">
+          {lines.map((line, i) => (
+            <DiffLine key={i} line={line} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UnifiedDiffView({ fileChanges }: { fileChanges: FileChange[] }) {
+  if (fileChanges.length === 0) {
+    return (
+      <div className="p-8 text-gray-500">
+        Agent made no file changes — check the agent log
+      </div>
+    )
+  }
+  return (
+    <div className="p-4">
+      {fileChanges.map((fc, i) => (
+        <FileBlock key={i} fc={fc} />
+      ))}
+    </div>
+  )
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ApprovalPage() {
   const { id } = useParams<{ id: string }>()
@@ -15,10 +104,11 @@ export default function ApprovalPage() {
   const [rejectReason, setRejectReason]       = useState('')
   const [showConfirm, setShowConfirm]         = useState(false)
 
-  const agentJob   = task?.agentJobs?.[0]
+  const codingJob  = task?.agentJobs?.find((j: any) => j.agentType === 'CODING')
   const reviewJob  = task?.agentJobs?.find((j: any) => j.agentType === 'REVIEW')
   const verdict    = reviewJob?.verdict ?? 'PASS'
   const comments   = reviewJob?.reviewComments as any[] ?? []
+  const fileChanges: FileChange[] = (codingJob?.fileChanges as FileChange[]) ?? []
 
   const verdictVariant = verdict === 'PASS' ? 'green' : verdict === 'WARN' ? 'yellow' : 'red'
 
@@ -67,17 +157,7 @@ export default function ApprovalPage() {
       <div className="flex gap-0">
         {/* Diff viewer */}
         <div className="flex-1 overflow-auto border-r border-gray-800">
-          {agentJob?.diffRaw ? (
-            <ReactDiffViewer
-              oldValue={agentJob.patchedContent ? '' : ''}
-              newValue={agentJob.diffRaw}
-              splitView={false}
-              useDarkTheme
-              showDiffOnly
-            />
-          ) : (
-            <div className="p-8 text-gray-500">No diff available</div>
-          )}
+          <UnifiedDiffView fileChanges={fileChanges} />
         </div>
 
         {/* Right panel */}
@@ -112,20 +192,21 @@ export default function ApprovalPage() {
           )}
 
           {/* Agent explanation */}
-          {agentJob?.explanation && (
+          {codingJob?.explanation && (
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
               <h4 className="mb-2 text-sm font-semibold">Agent Explanation</h4>
-              <p className="text-xs text-gray-400 leading-relaxed">{agentJob.explanation}</p>
+              <p className="text-xs text-gray-400 leading-relaxed">{codingJob.explanation}</p>
             </div>
           )}
 
           {/* Stats */}
-          {agentJob?.tokenCount && (
+          {codingJob?.tokenCount && (
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
               <h4 className="mb-2 text-sm font-semibold">Stats</h4>
               <div className="space-y-1 text-xs text-gray-400">
-                <div className="flex justify-between"><span>Tokens</span><span>{agentJob.tokenCount.toLocaleString()}</span></div>
-                <div className="flex justify-between"><span>Duration</span><span>{((agentJob.durationMs ?? 0) / 1000).toFixed(1)}s</span></div>
+                <div className="flex justify-between"><span>Files changed</span><span>{fileChanges.length}</span></div>
+                <div className="flex justify-between"><span>Tokens</span><span>{codingJob.tokenCount.toLocaleString()}</span></div>
+                <div className="flex justify-between"><span>Duration</span><span>{((codingJob.durationMs ?? 0) / 1000).toFixed(1)}s</span></div>
               </div>
             </div>
           )}

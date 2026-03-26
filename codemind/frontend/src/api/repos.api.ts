@@ -35,6 +35,17 @@ export function useConnectRepo() {
   })
 }
 
+export function useUpdateRepoToken() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ repoId, token }: { repoId: string; token: string }) => {
+      const { data } = await api.patch<{ data: any }>(`/repos/${repoId}/token`, { token })
+      return data.data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['repos'] }),
+  })
+}
+
 export function useTriggerIngest() {
   return useMutation({
     mutationFn: async (repoId: string) => {

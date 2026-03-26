@@ -76,7 +76,7 @@ router.post('/tasks/:id/approve', async (req, res, next) => {
     })
     await taskRepo.updateStatus(task.id, 'PATCHING')
 
-    const latestAgentJob = task.agentJobs[0]
+    const latestAgentJob = [...task.agentJobs].reverse().find((j) => j.agentType === 'CODING')
     const prJob = await patchQueue.add(JOB.PATCH, {
       taskId: task.id,
       agentJobId: latestAgentJob?.id,

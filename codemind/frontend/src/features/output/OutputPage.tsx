@@ -12,7 +12,7 @@ export default function OutputPage() {
   if (!task)     return <div className="flex h-screen items-center justify-center bg-gray-950 text-red-400">Task not found</div>
 
   const pr       = task.pullRequest
-  const agentJob = task.agentJobs?.[0]
+  const agentJob = task.agentJobs?.find((j: any) => j.agentType === 'CODING')
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">

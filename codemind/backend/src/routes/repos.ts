@@ -121,6 +121,20 @@ router.get('/repos/:id', async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+router.patch('/repos/:id/token', async (req, res, next) => {
+  const start = Date.now()
+  try {
+    const { token } = req.body
+    if (!token || typeof token !== 'string') {
+      return next(new ValidationError('token is required'))
+    }
+    const repo = await repoRepo.findById(req.params.id)
+    if (!repo) throw new NotFoundError('Repository not found')
+    const updated = await repoRepo.updateToken(req.params.id, token)
+    res.json({ data: updated, error: null, meta: { took: Date.now() - start } })
+  } catch (err) { next(err) }
+})
+
 router.delete('/repos/:id', async (req, res, next) => {
   const start = Date.now()
   try {

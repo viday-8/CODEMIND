@@ -14,7 +14,7 @@ export async function callClaude(
   maxTokens = 4096,
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const msg = await getClient().messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: maxTokens,
     system: systemMessage,
     messages: [{ role: 'user', content: userMessage }],

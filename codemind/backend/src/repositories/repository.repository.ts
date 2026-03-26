@@ -47,6 +47,10 @@ export class RepositoryRepository {
     return { fileCount, nodeCount, edgeCount }
   }
 
+  async updateToken(id: string, token: string): Promise<Repository> {
+    return this.prisma.repository.update({ where: { id }, data: { githubToken: token } })
+  }
+
   async delete(id: string): Promise<void> {
     await this.prisma.repository.delete({ where: { id } })
   }

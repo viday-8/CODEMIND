@@ -72,7 +72,8 @@ export function startReviewWorker() {
     let aiOutput: ReviewOutput = { verdict: 'pass', summary: 'Review could not be parsed', comments: [] }
     try {
       const { text } = await callClaude(prompt, REVIEW_AGENT_SYSTEM, 1024)
-      aiOutput = JSON.parse(text) as ReviewOutput
+      const cleaned = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
+      aiOutput = JSON.parse(cleaned) as ReviewOutput
     } catch (err) {
       logger.warn({ err }, 'Failed to parse AI review — using heuristics only')
     }
