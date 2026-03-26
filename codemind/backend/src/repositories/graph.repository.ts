@@ -52,6 +52,27 @@ export class GraphRepository {
     })
   }
 
+  async findFileNodeByPath(repositoryId: string, path: string) {
+    return this.prisma.graphNode.findFirst({
+      where: { repositoryId, nodeType: 'FILE', fullName: path },
+    })
+  }
+
+  async findChildNodes(fileNodeId: string) {
+    // Returns FUNCTION/CLASS/METHOD nodes that belong to the same file as the given FILE node
+    const fileNode = await this.prisma.graphNode.findUnique({
+      where: { id: fileNodeId },
+      select: { fileId: true },
+    })
+    if (!fileNode) return []
+    return this.prisma.graphNode.findMany({
+      where: {
+        fileId: fileNode.fileId,
+        nodeType: { in: ['FUNCTION', 'CLASS', 'METHOD'] },
+      },
+    })
+  }
+
   async deleteForRepo(repositoryId: string): Promise<void> {
     // Edges are cascade-deleted with nodes
     await this.prisma.graphNode.deleteMany({ where: { repositoryId } })

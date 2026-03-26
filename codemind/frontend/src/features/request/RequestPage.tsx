@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDebounce } from '../../utils/useDebounce'
-import { useRepo, useVectorSearch } from '../../api/repos.api'
+import { useRepo, useVectorSearch, useRechunk } from '../../api/repos.api'
 import { useCreateTask } from '../../api/tasks.api'
-import type { ChangeType } from '@codemind/shared'
+import type { ChangeType, ChunkMatch } from '@codemind/shared'
 
 const CHANGE_TYPES: ChangeType[] = ['FEATURE', 'BUG_FIX', 'REFACTOR', 'PERFORMANCE', 'SECURITY']
 
@@ -24,9 +24,11 @@ export default function RequestPage() {
   const [description, setDescription] = useState('')
   const [changeType, setChangeType]   = useState<ChangeType>('FEATURE')
 
-  const debouncedQuery = useDebounce(description, 400)
-  const { data: searchResults = [] } = useVectorSearch(repoId!, debouncedQuery)
+  const debouncedTitle       = useDebounce(title, 400)
+  const debouncedDescription = useDebounce(description, 400)
+  const { data: searchResults = [] } = useVectorSearch(repoId!, debouncedTitle, debouncedDescription)
   const createTask = useCreateTask()
+  const rechunk = useRechunk()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -118,20 +120,47 @@ export default function RequestPage() {
         {/* Live file preview */}
         <div>
           <h3 className="mb-4 font-semibold text-gray-300">Auto-detected Files</h3>
-          {searchResults.length === 0 ? (
-            <p className="text-sm text-gray-600">Start typing a description to see relevant files...</p>
+          {rechunk.isPending ? (
+            <p className="text-sm text-gray-500 animate-pulse">Indexing chunks... this may take a minute</p>
+          ) : searchResults.length === 0 ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">
+                {debouncedTitle || debouncedDescription
+                  ? 'No indexed code found.'
+                  : 'Start typing to see relevant code...'}
+              </p>
+              {(debouncedTitle || debouncedDescription) && (
+                <button
+                  onClick={() => rechunk.mutate(repoId!)}
+                  className="w-full rounded border border-gray-700 py-1.5 text-xs text-gray-400 hover:border-brand-500 hover:text-white"
+                >
+                  Re-index code chunks
+                </button>
+              )}
+            </div>
           ) : (
             <div className="space-y-3">
-              {searchResults.map((f: any) => (
-                <div key={f.id} className="rounded-lg border border-gray-800 bg-gray-900 p-3">
-                  <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs font-medium text-white">{f.name}</span>
-                    <span className="text-xs text-brand-400">{Math.round((f.similarity ?? 0) * 100)}%</span>
+              {(searchResults as ChunkMatch[]).map((chunk) => (
+                <div key={chunk.id} className="rounded-lg border border-gray-800 bg-gray-900 p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500 truncate max-w-[70%]">{chunk.path}</p>
+                    <span className="text-xs text-brand-400 shrink-0">{Math.round((chunk.similarity ?? 0) * 100)}%</span>
                   </div>
-                  <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-gray-700">
-                    <div className="h-full bg-brand-500" style={{ width: `${Math.round((f.similarity ?? 0) * 100)}%` }} />
+                  <div className="h-1 overflow-hidden rounded-full bg-gray-700">
+                    <div className="h-full bg-brand-500 transition-all" style={{ width: `${Math.round((chunk.similarity ?? 0) * 100)}%` }} />
                   </div>
-                  <p className="text-xs text-gray-500 truncate">{f.path}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {chunk.name && <span className="text-xs font-medium text-white">{chunk.name}</span>}
+                    <span className="text-[10px] rounded px-1 py-0.5 bg-gray-800 text-gray-400 uppercase tracking-wide">
+                      {chunk.chunkType}
+                    </span>
+                    <span className="text-xs text-gray-500">lines {chunk.startLine}–{chunk.endLine}</span>
+                  </div>
+                  {chunk.content && (
+                    <pre className="text-[10px] text-gray-400 bg-gray-800 rounded px-2 py-1 overflow-hidden max-h-10 leading-relaxed">
+                      {chunk.content.split('\n').slice(0, 2).join('\n')}
+                    </pre>
+                  )}
                 </div>
               ))}
             </div>

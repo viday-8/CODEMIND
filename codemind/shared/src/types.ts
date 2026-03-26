@@ -22,7 +22,7 @@ export interface ApiResponse<T> {
 export type IngestEvent =
   | { type: 'progress'; pct: number; label: string }
   | { type: 'log'; message: string; level: 'info' | 'ok' | 'error' }
-  | { type: 'done'; stats: { files: number; nodes: number; edges: number; embeddings: number } }
+  | { type: 'done'; stats: { files: number; nodes: number; edges: number; embeddings: number; chunks: number } }
   | { type: 'error'; message: string }
 
 export type AgentEvent =
@@ -41,6 +41,31 @@ export interface ReviewOutput {
     text: string
     line?: number
   }>
+}
+
+// Multi-file change types for coding agent
+export type FileOperation = 'modify' | 'create'
+
+export interface FileChange {
+  path: string
+  operation: FileOperation
+  diff?: string         // present for 'modify'
+  content?: string      // present for 'create' (full new file content)
+  additions: number
+  deletions: number
+}
+
+export type ChunkType = 'FUNCTION' | 'CLASS' | 'FILE_HEADER' | 'SLIDING'
+
+export interface ChunkMatch {
+  id: string
+  path: string
+  name: string | null
+  chunkType: ChunkType
+  startLine: number
+  endLine: number
+  content: string
+  similarity: number
 }
 
 // Partial domain types for frontend use

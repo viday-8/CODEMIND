@@ -10,16 +10,20 @@ import { GraphService } from '../services/graph.service'
 import { EmbedService } from '../services/embed.service'
 import { FileRepository } from '../repositories/file.repository'
 import { GraphRepository } from '../repositories/graph.repository'
+import { ChunkRepository } from '../repositories/chunk.repository'
+import { extractChunks } from '../services/chunk.service'
+import { embedText } from '../lib/embedder'
 
 interface IngestJobData {
   repositoryId: string
   jobId: string
 }
 
-const repoRepo  = new RepositoryRepository(prisma)
-const jobRepo   = new IngestJobRepository(prisma)
-const fileRepo  = new FileRepository(prisma)
-const graphRepo = new GraphRepository(prisma)
+const repoRepo   = new RepositoryRepository(prisma)
+const jobRepo    = new IngestJobRepository(prisma)
+const fileRepo   = new FileRepository(prisma)
+const graphRepo  = new GraphRepository(prisma)
+const chunkRepo  = new ChunkRepository(prisma)
 
 async function emitProgress(job: Job, pct: number, label: string) {
   await job.updateProgress({ type: 'progress', pct, label })
@@ -95,12 +99,34 @@ export function startIngestWorker() {
       )
       await emitLog(job, `  Generated ${embedded} embeddings`, 'ok')
 
-      // Step 8 — Mark complete [95–100]
-      await emitProgress(job, 95, 'Finalising...')
+      // Step 7.5 — Extract and embed code chunks [95–97]
+      await emitProgress(job, 95, 'Chunking code...')
+      await chunkRepo.deleteForRepo(repositoryId)
+      const allFiles = await fileRepo.findByRepo(repositoryId)
+      let chunksTotal = 0
+      for (const file of allFiles) {
+        const fileNode = await graphRepo.findFileNodeByPath(repositoryId, file.path)
+        const symbolNodes = fileNode ? await graphRepo.findChildNodes(fileNode.id) : []
+        const rawChunks = extractChunks(file.content, symbolNodes)
+        const saved = await chunkRepo.upsertChunks(repositoryId, file.id, file.path, rawChunks)
+        for (const chunk of saved) {
+          const raw = rawChunks.find((c) => c.startLine === chunk.startLine)
+          if (!raw) continue
+          try {
+            const embedding = await embedText(raw.content.slice(0, 1500))
+            await chunkRepo.updateEmbedding(chunk.id, embedding)
+            chunksTotal++
+          } catch { /* skip */ }
+        }
+      }
+      await emitLog(job, `  Chunks: ${chunksTotal} embedded`, 'ok')
+
+      // Step 8 — Mark complete [97–100]
+      await emitProgress(job, 97, 'Finalising...')
       await repoRepo.updateLastIngested(repositoryId)
       await jobRepo.updateStatus(jobId, 'DONE', { progress: 100 })
 
-      const stats = { files: contents.length, nodes, edges, embeddings: embedded }
+      const stats = { files: contents.length, nodes, edges, embeddings: embedded, chunks: chunksTotal }
       await emitProgress(job, 100, 'Done!')
 
       logger.info({ repositoryId, durationMs: Date.now() - start, stats }, 'Ingest completed')

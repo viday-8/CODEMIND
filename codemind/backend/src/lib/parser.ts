@@ -80,7 +80,7 @@ export class ParserService {
 
       if (['.ts', '.tsx', '.js', '.jsx', '.mjs'].includes(ext)) {
         m = line.match(/(?:^|\s)(?:async\s+)?function\s+(\w+)\s*\(/)
-          ?? line.match(/(?:^|const|let|var)\s+(\w+)\s*=\s*(?:async\s+)?\(/)
+          ?? line.match(/(?:^|const|let|var)\s+(\w+)\s*(?::[^=<]*(?:<[^>]*>)?)?\s*=\s*(?:async\s+)?\(/)
           ?? line.match(/^\s*(?:async\s+)?(\w+)\s*\([^)]*\)\s*(?::\s*\S+\s*)?\{/)
       } else if (ext === '.py') {
         m = line.match(/^def\s+(\w+)\s*\(/)
@@ -109,7 +109,8 @@ export class ParserService {
   private extractClasses(lines: string[], ext: string) {
     const results: ParsedFile['classes'] = []
 
-    lines.forEach((line, i) => {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
       let m: RegExpMatchArray | null = null
       if (['.ts', '.tsx', '.js', '.jsx'].includes(ext)) {
         m = line.match(/^(?:export\s+)?(?:abstract\s+)?class\s+(\w+)/)
@@ -120,8 +121,25 @@ export class ParserService {
       } else if (ext === '.go') {
         m = line.match(/^type\s+(\w+)\s+struct/)
       }
-      if (m) results.push({ name: m[1], startLine: i + 1, endLine: i + 1 })
-    })
+
+      if (!m) continue
+      const name = m[1]
+      const startLine = i + 1
+      let depth = 0
+      let started = false
+      let endLine = startLine
+
+      for (let j = i; j < lines.length; j++) {
+        const opens = (lines[j].match(/\{/g) ?? []).length
+        const closes = (lines[j].match(/\}/g) ?? []).length
+        depth += opens - closes
+        if (opens > 0) started = true
+        if (started && depth <= 0) { endLine = j + 1; break }
+        endLine = j + 1
+      }
+
+      results.push({ name, startLine, endLine })
+    }
 
     return results
   }
