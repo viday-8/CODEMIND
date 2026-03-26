@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRepos, useConnectRepo, useTriggerIngest, useJobStream, useRepoPreview } from '../../api/repos.api'
+import { useRepos, useConnectRepo, useTriggerIngest, useJobStream, useRepoPreview, useUpdateRepoToken } from '../../api/repos.api'
 import Badge, { statusVariant } from '../../components/Badge'
 
 const QUICK_REPOS = [
@@ -21,11 +21,15 @@ export default function ConnectPage() {
   const [token, setToken] = useState('')
   const [activeJobId, setActiveJobId] = useState<string | null>(null)
   const [step, setStep] = useState<'form' | 'preview' | 'ingesting'>('form')
+  const [editingTokenFor, setEditingTokenFor] = useState<string | null>(null)
+  const [editToken, setEditToken] = useState('')
+  const [savedTokenFor, setSavedTokenFor] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
-  const preview   = useRepoPreview(url, token)
-  const connect   = useConnectRepo()
-  const ingest    = useTriggerIngest()
+  const preview       = useRepoPreview(url, token)
+  const connect       = useConnectRepo()
+  const ingest        = useTriggerIngest()
+  const updateToken   = useUpdateRepoToken()
   const { events, done } = useJobStream(activeJobId)
 
   useEffect(() => {
@@ -43,6 +47,14 @@ export default function ConnectPage() {
     e.preventDefault()
     const result = await preview.refetch()
     if (result.data) setStep('preview')
+  }
+
+  async function handleSaveToken(repoId: string) {
+    await updateToken.mutateAsync({ repoId, token: editToken })
+    setSavedTokenFor(repoId)
+    setEditingTokenFor(null)
+    setEditToken('')
+    setTimeout(() => setSavedTokenFor(null), 3000)
   }
 
   async function handleProceedToIngest() {
@@ -206,29 +218,63 @@ export default function ConnectPage() {
         ) : (
           <div className="space-y-3">
             {repos.map((repo: any) => (
-              <div key={repo.id}
-                className="flex cursor-pointer items-center justify-between rounded-xl border border-gray-800 bg-gray-900 p-4 hover:border-gray-700"
-                onClick={() => navigate(`/repos/${repo.id}/tasks/new`)}
-              >
-                <div>
-                  <div className="font-medium">{repo.fullName}</div>
-                  <div className="text-sm text-gray-500">{repo.defaultBranch}</div>
+              <div key={repo.id} className="rounded-xl border border-gray-800 bg-gray-900 hover:border-gray-700">
+                <div
+                  className="flex cursor-pointer items-center justify-between p-4"
+                  onClick={() => navigate(`/repos/${repo.id}/tasks/new`)}
+                >
+                  <div>
+                    <div className="font-medium">{repo.fullName}</div>
+                    <div className="text-sm text-gray-500">{repo.defaultBranch}</div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge label={repo.status} variant={statusVariant(repo.status)} />
+                    {savedTokenFor === repo.id && (
+                      <span className="text-xs text-green-400">Token saved!</span>
+                    )}
+                    <button onClick={(e) => { e.stopPropagation(); setEditingTokenFor(editingTokenFor === repo.id ? null : repo.id); setEditToken(ENV_TOKEN) }}
+                      className="rounded border border-yellow-800 bg-yellow-900/20 px-3 py-1 text-xs text-yellow-400 hover:border-yellow-600">
+                      Set Token
+                    </button>
+                    {repo.status === 'READY' && (
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); navigate(`/repos/${repo.id}/tasks`) }}
+                          className="rounded border border-gray-700 px-3 py-1 text-xs hover:border-gray-500">
+                          Tasks
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); navigate(`/repos/${repo.id}/graph`) }}
+                          className="rounded border border-gray-700 px-3 py-1 text-xs hover:border-gray-500">
+                          Graph
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Badge label={repo.status} variant={statusVariant(repo.status)} />
-                  {repo.status === 'READY' && (
-                    <>
-                      <button onClick={(e) => { e.stopPropagation(); navigate(`/repos/${repo.id}/tasks`) }}
-                        className="rounded border border-gray-700 px-3 py-1 text-xs hover:border-gray-500">
-                        Tasks
-                      </button>
-                      <button onClick={(e) => { e.stopPropagation(); navigate(`/repos/${repo.id}/graph`) }}
-                        className="rounded border border-gray-700 px-3 py-1 text-xs hover:border-gray-500">
-                        Graph
-                      </button>
-                    </>
-                  )}
-                </div>
+
+                {editingTokenFor === repo.id && (
+                  <div className="border-t border-gray-800 px-4 py-3 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="password"
+                      value={editToken}
+                      onChange={(e) => setEditToken(e.target.value)}
+                      placeholder="ghp_..."
+                      className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:border-brand-500 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => handleSaveToken(repo.id)}
+                      disabled={!editToken.trim() || updateToken.isPending}
+                      className="rounded-lg bg-green-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-600 disabled:opacity-50"
+                    >
+                      {updateToken.isPending ? 'Saving...' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => { setEditingTokenFor(null); setEditToken('') }}
+                      className="rounded-lg border border-gray-700 px-4 py-1.5 text-sm text-gray-400 hover:bg-gray-800"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

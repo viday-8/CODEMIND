@@ -5,6 +5,7 @@ import { logger } from '../lib/logger'
 import { TaskRepository } from '../repositories/task.repository'
 import { RepositoryRepository } from '../repositories/repository.repository'
 import { GitHubService } from '../lib/github'
+import { applyDiff } from '../lib/diff'
 import type { FileChange } from '@codemind/shared'
 
 interface PatchJobData {
@@ -52,9 +53,29 @@ export function startPatchWorker() {
     await github.createBranch(repo.owner, repo.name, branchName, baseSha)
 
     // Determine files to commit: prefer multi-file payload, fall back to single-file
-    const filesToCommit = hasMultiFile
-      ? fileChanges!.filter((fc) => fc.content).map((fc) => ({ path: fc.path, content: fc.content! }))
-      : [{ path: codingJob!.primaryFilePath!, content: codingJob!.patchedContent! }]
+    let filesToCommit: { path: string; content: string }[]
+
+    if (hasMultiFile) {
+      filesToCommit = []
+      for (const fc of fileChanges!) {
+        if (fc.operation === 'create') {
+          if (fc.content) filesToCommit.push({ path: fc.path, content: fc.content })
+        } else {
+          // Fetch the actual current file from GitHub and apply the diff to get correct content
+          try {
+            await emit(job, { type: 'log', message: `  Fetching current ${fc.path}...`, level: 'info' })
+            const original = await github.getFileContent(repo.owner, repo.name, fc.path)
+            const patched = applyDiff(original, fc.diff ?? '')
+            filesToCommit.push({ path: fc.path, content: patched })
+          } catch (err) {
+            logger.warn({ path: fc.path, err }, 'Could not fetch/apply diff — skipping file')
+          }
+        }
+      }
+      if (filesToCommit.length === 0) throw new Error('No files could be prepared for commit')
+    } else {
+      filesToCommit = [{ path: codingJob!.primaryFilePath!, content: codingJob!.patchedContent! }]
+    }
 
     // Commit each file (create or update depending on whether it exists on the branch)
     for (const file of filesToCommit) {
@@ -119,7 +140,16 @@ export function startPatchWorker() {
     concurrency: 2,
   })
 
-  worker.on('failed', (job, err) => logger.error({ jobId: job?.id, err }, 'Patch worker failed'))
+  worker.on('failed', async (job, err) => {
+    const message = err instanceof Error ? err.message : String(err)
+    logger.error({ jobId: job?.id, err }, 'Patch worker failed')
+    if (job?.data?.taskId) {
+      await taskRepo.updateStatus(job.data.taskId, 'FAILED').catch(() => {})
+    }
+    if (job?.data?.agentJobId) {
+      await taskRepo.appendJobLog(job.data.agentJobId, `PR creation failed: ${message}`).catch(() => {})
+    }
+  })
   logger.info('PatchWorker started')
   return worker
 }

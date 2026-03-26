@@ -146,7 +146,7 @@ export function startAgentWorker() {
       })
 
       await emit(job, { type: 'step', step: 5, label: 'Calling Claude...', status: 'active' })
-      await emit(job, { type: 'log', message: `  Calling claude-sonnet-4-5 (max 6000 tokens, ${candidateFiles.length} candidate files)...`, level: 'info' })
+      await emit(job, { type: 'log', message: `  Calling claude-haiku-4-5 (max 6000 tokens, ${candidateFiles.length} candidate files)...`, level: 'info' })
 
       const { text, inputTokens, outputTokens } = await callClaude(prompt, CODING_AGENT_SYSTEM, 6000)
       await emit(job, { type: 'log', message: `  Tokens: ${inputTokens} in / ${outputTokens} out`, level: 'ok' })

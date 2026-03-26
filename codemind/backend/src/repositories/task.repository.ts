@@ -29,7 +29,7 @@ export class TaskRepository {
       include: {
         repository: true,
         requester: { select: { id: true, name: true, email: true, role: true } },
-        agentJobs: { orderBy: { createdAt: 'desc' }, take: 1 },
+        agentJobs: { orderBy: { createdAt: 'asc' } },
         approval: true,
         pullRequest: true,
       },
