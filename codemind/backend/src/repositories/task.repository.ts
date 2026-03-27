@@ -87,7 +87,11 @@ export class TaskRepository {
     decision: 'APPROVED' | 'REJECTED'
     reason?: string
   }) {
-    return this.prisma.approval.create({ data })
+    return this.prisma.approval.upsert({
+      where: { taskId: data.taskId },
+      update: { decision: data.decision, reason: data.reason ?? null },
+      create: data,
+    })
   }
 
   async createPullRequest(data: {
