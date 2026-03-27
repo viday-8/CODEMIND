@@ -228,6 +228,7 @@ model Task {
   changeType   ChangeType
   status       TaskStatus @default(PENDING)
   attempt      Int        @default(1)
+  model        String     @default("claude-sonnet-4-6")
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   agentJobs    AgentJob[]

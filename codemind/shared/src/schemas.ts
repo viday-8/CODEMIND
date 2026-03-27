@@ -25,6 +25,7 @@ export const CreateTaskSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().min(20),
   changeType: z.enum(['FEATURE', 'BUG_FIX', 'REFACTOR', 'PERFORMANCE', 'SECURITY', 'REQUIREMENT']),
+  model: z.enum(['claude-haiku-4-5-20251001', 'claude-sonnet-4-6', 'claude-opus-4-6']).default('claude-sonnet-4-6'),
 })
 
 // Approval

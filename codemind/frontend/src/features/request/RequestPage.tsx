@@ -3,9 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useDebounce } from '../../utils/useDebounce'
 import { useRepo, useVectorSearch, useRechunk } from '../../api/repos.api'
 import { useCreateTask } from '../../api/tasks.api'
-import type { ChangeType, ChunkMatch } from '@codemind/shared'
+import type { ChangeType, ChunkMatch, ClaudeModel } from '@codemind/shared'
 
 const CHANGE_TYPES: ChangeType[] = ['FEATURE', 'BUG_FIX', 'REFACTOR', 'PERFORMANCE', 'SECURITY']
+
+const MODEL_OPTIONS: { value: ClaudeModel; label: string; desc: string }[] = [
+  { value: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5', desc: 'Fastest · lowest cost' },
+  { value: 'claude-sonnet-4-6',         label: 'Sonnet 4.6', desc: 'Balanced · recommended' },
+  { value: 'claude-opus-4-6',           label: 'Opus 4.6',   desc: 'Most capable' },
+]
 
 const EXAMPLES = [
   { title: 'Add input validation', description: 'Add Zod validation to all user input fields in the registration form', type: 'FEATURE' as ChangeType },
@@ -23,6 +29,7 @@ export default function RequestPage() {
   const [title, setTitle]       = useState('')
   const [description, setDescription] = useState('')
   const [changeType, setChangeType]   = useState<ChangeType>('FEATURE')
+  const [model, setModel]             = useState<ClaudeModel>('claude-sonnet-4-6')
 
   const debouncedTitle       = useDebounce(title, 400)
   const debouncedDescription = useDebounce(description, 400)
@@ -37,6 +44,7 @@ export default function RequestPage() {
       title,
       description,
       changeType,
+      model,
     })
     navigate(`/tasks/${task.id}`)
   }
@@ -84,6 +92,24 @@ export default function RequestPage() {
                         : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
                     }`}>
                     {t.replace('_', ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Model selector */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-300">Claude Model</label>
+              <div className="flex flex-wrap gap-2">
+                {MODEL_OPTIONS.map((opt) => (
+                  <button key={opt.value} type="button" onClick={() => setModel(opt.value)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      model === opt.value
+                        ? 'border-brand-500 bg-brand-900/50 text-brand-300'
+                        : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+                    }`}>
+                    {opt.label}
+                    <span className="ml-1.5 text-[10px] opacity-60">{opt.desc}</span>
                   </button>
                 ))}
               </div>

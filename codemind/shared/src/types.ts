@@ -10,6 +10,7 @@ export type AgentType = 'CODING' | 'REVIEW'
 export type Verdict = 'PASS' | 'WARN' | 'BLOCK'
 export type ApprovalDecision = 'APPROVED' | 'REJECTED'
 export type PRStatus = 'OPEN' | 'MERGED' | 'CLOSED'
+export type ClaudeModel = 'claude-haiku-4-5-20251001' | 'claude-sonnet-4-6' | 'claude-opus-4-6'
 
 // API Response envelope
 export interface ApiResponse<T> {

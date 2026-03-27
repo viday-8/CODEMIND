@@ -12,9 +12,10 @@ export async function callClaude(
   userMessage: string,
   systemMessage: string,
   maxTokens = 4096,
+  model = 'claude-sonnet-4-6',
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   const msg = await getClient().messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model,
     max_tokens: maxTokens,
     system: systemMessage,
     messages: [{ role: 'user', content: userMessage }],
