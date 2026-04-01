@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useRepo } from '../../api/repos.api'
-import { useTasks } from '../../api/tasks.api'
+import { useTasks, useDeleteTask } from '../../api/tasks.api'
 import Badge, { statusVariant } from '../../components/Badge'
 import type { TaskStatus, ChangeType } from '@codemind/shared'
 
@@ -25,6 +25,8 @@ export default function TaskHistoryPage() {
   const { data: tasks = [], isLoading } = useTasks(repoId)
 
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'ALL'>('ALL')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const { mutateAsync: deleteTask, isPending: isDeleting } = useDeleteTask()
 
   const filtered = statusFilter === 'ALL'
     ? tasks
@@ -117,6 +119,7 @@ export default function TaskHistoryPage() {
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-center">Attempts</th>
                   <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800">
@@ -143,6 +146,32 @@ export default function TaskHistoryPage() {
                       {new Date(task.createdAt).toLocaleDateString(undefined, {
                         month: 'short', day: 'numeric', year: 'numeric',
                       })}
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                      {confirmDeleteId === task.id ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={async () => { await deleteTask(task.id); setConfirmDeleteId(null) }}
+                            disabled={isDeleting}
+                            className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="rounded border border-gray-700 px-2 py-1 text-xs text-gray-400 hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(task.id)}
+                          className="rounded px-2 py-1 text-xs text-gray-600 hover:bg-red-950/40 hover:text-red-400"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

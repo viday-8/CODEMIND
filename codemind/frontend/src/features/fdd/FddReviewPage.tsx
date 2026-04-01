@@ -230,6 +230,15 @@ export default function FddReviewPage() {
 
           {/* Sidebar summary */}
           <div className="space-y-4">
+            {/* Repo context panel */}
+            <div className="rounded-xl border border-brand-800 bg-brand-950/20 p-4">
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-brand-400">Analysed against</p>
+              <p className="font-semibold text-white truncate">{fdd.repository?.name ?? fdd.repositoryId}</p>
+              {fdd.repository?.fullName && (
+                <p className="text-xs text-gray-500 truncate">{fdd.repository.fullName}</p>
+              )}
+            </div>
+
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-5">
               <h3 className="mb-4 font-semibold">Document Summary</h3>
               <div className="space-y-2 text-sm">
@@ -252,22 +261,24 @@ export default function FddReviewPage() {
                 </div>
               </div>
 
+              {/* Gap analysis report */}
               <div className="mt-5 space-y-2 border-t border-gray-800 pt-4 text-sm">
+                <p className="mb-3 text-xs font-medium uppercase tracking-wide text-gray-500">Gap Analysis Report</p>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Total</span>
+                  <span className="text-gray-400">Total requirements</span>
                   <span className="font-semibold">{counts.total}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-red-400">GAP (new)</span>
-                  <span className="font-semibold text-red-300">{counts.gap}</span>
+                <div className="flex items-center justify-between rounded-lg bg-red-950/30 px-3 py-2">
+                  <span className="text-red-400 font-medium">GAP — New</span>
+                  <span className="font-bold text-red-300">{counts.gap}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-yellow-400">UPDATE (partial)</span>
-                  <span className="font-semibold text-yellow-300">{counts.update}</span>
+                <div className="flex items-center justify-between rounded-lg bg-yellow-950/30 px-3 py-2">
+                  <span className="text-yellow-400 font-medium">UPDATE — Partial</span>
+                  <span className="font-bold text-yellow-300">{counts.update}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-green-400">EXISTING (standard)</span>
-                  <span className="font-semibold text-green-300">{counts.existing}</span>
+                <div className="flex items-center justify-between rounded-lg bg-green-950/30 px-3 py-2">
+                  <span className="text-green-400 font-medium">EXISTING — Standard</span>
+                  <span className="font-bold text-green-300">{counts.existing}</span>
                 </div>
               </div>
             </div>

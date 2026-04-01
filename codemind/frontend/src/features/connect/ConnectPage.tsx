@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRepos, useConnectRepo, useTriggerIngest, useJobStream, useRepoPreview, useUpdateRepoToken } from '../../api/repos.api'
+import { useRepos, useConnectRepo, useTriggerIngest, useJobStream, useRepoPreview, useUpdateRepoToken, useDeleteRepo } from '../../api/repos.api'
 import Badge, { statusVariant } from '../../components/Badge'
 
 const QUICK_REPOS = [
@@ -25,11 +25,14 @@ export default function ConnectPage() {
   const [editToken, setEditToken] = useState('')
   const [savedTokenFor, setSavedTokenFor] = useState<string | null>(null)
 
+  const [confirmDeleteRepoId, setConfirmDeleteRepoId] = useState<string | null>(null)
+
   const queryClient = useQueryClient()
   const preview       = useRepoPreview(url, token)
   const connect       = useConnectRepo()
   const ingest        = useTriggerIngest()
   const updateToken   = useUpdateRepoToken()
+  const deleteRepo    = useDeleteRepo()
   const { events, done } = useJobStream(activeJobId)
 
   useEffect(() => {
@@ -247,6 +250,30 @@ export default function ConnectPage() {
                           Graph
                         </button>
                       </>
+                    )}
+                    {confirmDeleteRepoId === repo.id ? (
+                      <>
+                        <button
+                          onClick={async (e) => { e.stopPropagation(); await deleteRepo.mutateAsync(repo.id); setConfirmDeleteRepoId(null) }}
+                          disabled={deleteRepo.isPending}
+                          className="rounded border border-red-700 bg-red-900/30 px-3 py-1 text-xs text-red-400 hover:bg-red-900/60 disabled:opacity-50"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteRepoId(null) }}
+                          className="rounded border border-gray-700 px-3 py-1 text-xs text-gray-400 hover:border-gray-500"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteRepoId(repo.id) }}
+                        className="rounded border border-gray-800 px-3 py-1 text-xs text-gray-600 hover:border-red-800 hover:text-red-400"
+                      >
+                        Delete
+                      </button>
                     )}
                   </div>
                 </div>

@@ -105,4 +105,12 @@ export class TaskRepository {
   }) {
     return this.prisma.pullRequest.create({ data })
   }
+
+  async delete(id: string): Promise<void> {
+    await this.prisma.$transaction([
+      // FddRequirement.taskId is nullable with no cascade — null it first
+      this.prisma.fddRequirement.updateMany({ where: { taskId: id }, data: { taskId: null } }),
+      this.prisma.task.delete({ where: { id } }),
+    ])
+  }
 }

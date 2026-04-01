@@ -87,6 +87,7 @@ export interface FddRequirement {
 export interface FunctionalDoc {
   id: string
   repositoryId: string
+  repository: { name: string; fullName: string }
   fileName: string
   mimeType: string
   status: FddStatus

@@ -18,8 +18,11 @@ export class FddRepository {
   async findById(id: string): Promise<FunctionalDocWithRequirements | null> {
     return this.prisma.functionalDoc.findUnique({
       where: { id },
-      include: { requirements: { orderBy: { order: 'asc' } } },
-    })
+      include: {
+        requirements: { orderBy: { order: 'asc' } },
+        repository: { select: { name: true, fullName: true } },
+      },
+    }) as any
   }
 
   async findByRepo(repositoryId: string): Promise<FunctionalDoc[]> {

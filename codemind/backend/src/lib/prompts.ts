@@ -74,6 +74,38 @@ export function buildFddExtractionPrompt(rawText: string): string {
   return `DOCUMENT TEXT:\n\n${rawText.slice(0, 40000)}`
 }
 
+export const FDD_GAP_ANALYSIS_SYSTEM = `You are a software analyst performing gap analysis between a functional requirement and an existing codebase.
+
+Classify the requirement as exactly one of:
+- EXISTING: The requirement is already fully implemented in the provided code snippets
+- UPDATE: The requirement is partially implemented — relevant code exists but needs modification or extension
+- GAP: The requirement is not implemented at all in the provided code
+
+Respond with valid JSON only, no markdown, no extra text:
+{"classification": "EXISTING" | "UPDATE" | "GAP", "rationale": "one concise sentence referencing specific files where applicable"}`
+
+export function buildFddGapAnalysisPrompt(
+  req: { title: string; description: string },
+  chunks: Array<{ path: string; similarity: number; content: string }>,
+): string {
+  const codeSection = chunks.length === 0
+    ? 'No matching code found in the repository.'
+    : chunks
+        .map((c, i) =>
+          `=== [${i + 1}] ${c.path} (${(c.similarity * 100).toFixed(0)}% semantic match) ===\n${c.content.slice(0, 800)}`
+        )
+        .join('\n\n')
+
+  return `REQUIREMENT:
+Title: ${req.title}
+Description: ${req.description}
+
+MOST RELEVANT CODE FROM THE CODEBASE:
+${codeSection}
+
+Classify this requirement as EXISTING, UPDATE, or GAP based on the code above.`
+}
+
 export function buildReviewPrompt(ctx: {
   title: string
   diff: string

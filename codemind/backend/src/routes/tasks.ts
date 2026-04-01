@@ -52,6 +52,16 @@ router.get('/tasks/:id', async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+router.delete('/tasks/:id', async (req, res, next) => {
+  const start = Date.now()
+  try {
+    const task = await taskRepo.findById(req.params.id)
+    if (!task) throw new NotFoundError('Task not found')
+    await taskRepo.delete(req.params.id)
+    res.status(204).end()
+  } catch (err) { next(err) }
+})
+
 router.get('/tasks/:id/approval', async (req, res, next) => {
   const start = Date.now()
   try {

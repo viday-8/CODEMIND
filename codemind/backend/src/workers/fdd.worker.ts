@@ -51,7 +51,7 @@ export function startFddWorker() {
         await fddRepo.updateStatus(fddId, 'ANALYZING')
         await emitStep(job, 3, `Analyzing ${requirements.length} requirements...`, 'active')
 
-        const batchSize = 5
+        const batchSize = 3
         for (let i = 0; i < requirements.length; i += batchSize) {
           const batch = requirements.slice(i, i + batchSize)
           await Promise.all(

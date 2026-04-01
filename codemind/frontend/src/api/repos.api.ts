@@ -35,6 +35,18 @@ export function useConnectRepo() {
   })
 }
 
+export function useDeleteRepo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (repoId: string) => {
+      await api.delete(`/repos/${repoId}`)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['repos'] })
+    },
+  })
+}
+
 export function useUpdateRepoToken() {
   const qc = useQueryClient()
   return useMutation({
