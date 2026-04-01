@@ -69,6 +69,33 @@ export interface ChunkMatch {
   similarity: number
 }
 
+// FDD types
+export type FddStatus = 'UPLOADING' | 'PARSING' | 'EXTRACTING' | 'ANALYZING' | 'READY' | 'FAILED'
+export type RequirementClassification = 'GAP' | 'UPDATE' | 'EXISTING'
+
+export interface FddRequirement {
+  id: string
+  fddId: string
+  order: number
+  title: string
+  description: string
+  classification: RequirementClassification | null
+  rationale: string | null
+  taskId: string | null
+}
+
+export interface FunctionalDoc {
+  id: string
+  repositoryId: string
+  fileName: string
+  mimeType: string
+  status: FddStatus
+  errorMessage: string | null
+  bullJobId: string | null
+  createdAt: string
+  requirements: FddRequirement[]
+}
+
 // Partial domain types for frontend use
 export interface UserPublic {
   id: string

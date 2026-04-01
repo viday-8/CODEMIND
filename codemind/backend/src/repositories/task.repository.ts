@@ -9,6 +9,7 @@ export class TaskRepository {
     title: string
     description: string
     changeType: Task['changeType']
+    model?: string
   }): Promise<Task> {
     return this.prisma.task.create({ data })
   }

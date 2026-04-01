@@ -2,12 +2,12 @@ import { Router } from 'express'
 import { NotFoundError } from '../middleware/error'
 import { prisma } from '../lib/prisma'
 import { initSSE } from '../lib/sse'
-import { ingestEvents, agentEvents, reviewEvents, patchEvents } from '../lib/queues'
+import { ingestEvents, agentEvents, reviewEvents, patchEvents, fddEvents } from '../lib/queues'
 
 const router = Router()
 
 // All job event streams (picks the right queue based on job data)
-const allEvents = [ingestEvents, agentEvents, reviewEvents, patchEvents]
+const allEvents = [ingestEvents, agentEvents, reviewEvents, patchEvents, fddEvents]
 
 router.get('/jobs/:jobId/stream', async (req, res) => {
   const { jobId } = req.params

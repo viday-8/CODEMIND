@@ -100,17 +100,33 @@ enum ChunkType {
   SLIDING
 }
 
+enum FddStatus {
+  UPLOADING
+  PARSING
+  EXTRACTING
+  ANALYZING
+  READY
+  FAILED
+}
+
+enum RequirementClassification {
+  GAP
+  UPDATE
+  EXISTING
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
-  name         String
-  passwordHash String
-  role         Role       @default(DEVELOPER)
-  createdAt    DateTime   @default(now())
-  tasks        Task[]
-  approvals    Approval[]
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String
+  passwordHash   String
+  role           Role            @default(DEVELOPER)
+  createdAt      DateTime        @default(now())
+  tasks          Task[]
+  approvals      Approval[]
+  functionalDocs FunctionalDoc[]
 }
 
 model Repository {
@@ -127,6 +143,7 @@ model Repository {
   tasks          Task[]
   ingestJobs     IngestJob[]
   chunks         CodeChunk[]
+  functionalDocs FunctionalDoc[]
 
   @@index([fullName])
 }
@@ -231,9 +248,10 @@ model Task {
   model        String     @default("claude-sonnet-4-6")
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
-  agentJobs    AgentJob[]
-  approval     Approval?
-  pullRequest  PullRequest?
+  agentJobs       AgentJob[]
+  approval        Approval?
+  pullRequest     PullRequest?
+  fddRequirement  FddRequirement?
 
   @@index([repositoryId])
   @@index([requesterId])
@@ -286,4 +304,39 @@ model PullRequest {
   title        String
   status       PRStatus @default(OPEN)
   createdAt    DateTime @default(now())
+}
+
+model FunctionalDoc {
+  id           String           @id @default(cuid())
+  repositoryId String
+  repository   Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy   User?            @relation(fields: [uploadedById], references: [id])
+  fileName     String
+  mimeType     String
+  rawText      String           @db.Text
+  status       FddStatus        @default(UPLOADING)
+  errorMessage String?
+  bullJobId    String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  requirements FddRequirement[]
+
+  @@index([repositoryId])
+}
+
+model FddRequirement {
+  id             String                     @id @default(cuid())
+  fddId          String
+  fdd            FunctionalDoc              @relation(fields: [fddId], references: [id], onDelete: Cascade)
+  order          Int
+  title          String
+  description    String                     @db.Text
+  classification RequirementClassification?
+  rationale      String?                    @db.Text
+  taskId         String?                    @unique
+  task           Task?                      @relation(fields: [taskId], references: [id])
+  createdAt      DateTime                   @default(now())
+
+  @@index([fddId])
 }

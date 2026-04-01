@@ -9,10 +9,12 @@ import healthRouter from './routes/health'
 import reposRouter  from './routes/repos'
 import tasksRouter  from './routes/tasks'
 import jobsRouter   from './routes/jobs'
+import fddRouter    from './routes/fdd'
 import { startIngestWorker } from './workers/ingest.worker'
 import { startAgentWorker }  from './workers/agent.worker'
 import { startReviewWorker } from './workers/review.worker'
 import { startPatchWorker }  from './workers/patch.worker'
+import { startFddWorker }    from './workers/fdd.worker'
 
 const app = express()
 
@@ -38,6 +40,7 @@ app.use('/api', healthRouter)
 app.use('/api', reposRouter)
 app.use('/api', tasksRouter)
 app.use('/api', jobsRouter)
+app.use('/api', fddRouter)
 
 // 404
 app.use((_req, res) => {
@@ -55,5 +58,6 @@ startIngestWorker()
 startAgentWorker()
 startReviewWorker()
 startPatchWorker()
+startFddWorker()
 
 export default app

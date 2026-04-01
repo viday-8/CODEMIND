@@ -68,6 +68,12 @@ What changed, why, and which callers to verify.
 </explanation>`
 }
 
+export const FDD_EXTRACTION_SYSTEM = `You are a requirements analyst. Extract all functional requirements from the provided document. Return ONLY a JSON object with key "requirements" as an array. Each element must have "title" (string, max 200 chars) and "description" (string, full detail). No markdown, no explanation outside the JSON.`
+
+export function buildFddExtractionPrompt(rawText: string): string {
+  return `DOCUMENT TEXT:\n\n${rawText.slice(0, 40000)}`
+}
+
 export function buildReviewPrompt(ctx: {
   title: string
   diff: string

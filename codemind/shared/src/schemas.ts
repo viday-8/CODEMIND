@@ -38,9 +38,16 @@ export const RepoPreviewQuerySchema = z.object({
   token: z.string().optional(),
 })
 
+// FDD
+export const ExecuteFddSchema = z.object({
+  requirementIds: z.array(z.string().cuid()).min(1),
+  model: z.enum(['claude-haiku-4-5-20251001', 'claude-sonnet-4-6', 'claude-opus-4-6']).default('claude-sonnet-4-6'),
+})
+
 export type RegisterInput = z.infer<typeof RegisterSchema>
 export type LoginInput = z.infer<typeof LoginSchema>
 export type ConnectRepoInput = z.infer<typeof ConnectRepoSchema>
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>
 export type RejectTaskInput = z.infer<typeof RejectTaskSchema>
 export type RepoPreviewQuery = z.infer<typeof RepoPreviewQuerySchema>
+export type ExecuteFddInput = z.infer<typeof ExecuteFddSchema>

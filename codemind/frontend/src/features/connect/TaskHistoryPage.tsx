@@ -46,12 +46,20 @@ export default function TaskHistoryPage() {
           <span className="text-gray-600">/</span>
           <span className="text-sm text-white font-medium">Task History</span>
         </div>
-        <button
-          onClick={() => navigate(`/repos/${repoId}/tasks/new`)}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          + New Request
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate(`/repos/${repoId}/fdd/new`)}
+            className="rounded-lg border border-brand-600 px-4 py-2 text-sm font-medium text-brand-400 hover:bg-brand-900/30"
+          >
+            Upload FDD
+          </button>
+          <button
+            onClick={() => navigate(`/repos/${repoId}/tasks/new`)}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          >
+            + New Request
+          </button>
+        </div>
       </header>
 
       <div className="mx-auto max-w-5xl px-6 py-8">
